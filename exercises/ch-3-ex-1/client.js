@@ -27,8 +27,8 @@ var authServer = {
  * Add the client information in here
  */
 var client = {
-	"client_id": "",
-	"client_secret": "",
+	"client_id": "oauth-client-1",
+	"client_secret": "oauth-client-secret-1",
 	"redirect_uris": ["http://localhost:9000/callback"]
 };
 
@@ -45,10 +45,21 @@ app.get('/', function (req, res) {
 
 app.get('/authorize', function(req, res){
 
+	// State is used to protect from an external attack, the auth server sends back the same state
+	// We check the state in the callback method to match what the auth server has responded
+	state = randomstring.generate();
+
 	/*
 	 * Send the user to the authorization server
 	 */
-	
+	var authorizeUrl = buildUrl(authServer.authorizationEndpoint, {
+		response_type: 'code',
+		client_id: client.client_id,
+		redirect_uri: client.redirect_uris[0],
+		state: state
+	});
+
+	res.redirect(authorizeUrl);
 });
 
 app.get('/callback', function(req, res){
@@ -56,7 +67,36 @@ app.get('/callback', function(req, res){
 	/*
 	 * Parse the response from the authorization server and get a token
 	 */
-	
+	var code = req.query.code;
+
+	// Check if the state is the same has the saved one
+	if (req.query.state !== state) {
+		res.render('error', {error: 'State value did not match'});
+		return;
+	}
+
+	var form_data = qs.stringify({
+		grant_type: 'authorization_code'
+		,code: code,
+		// We need to pass the same redirect uri of the authorize request, this is because the Auth server check if match the previous one
+		redirect_uri: client.redirect_uris[0]
+	});
+
+	var headers = {
+		'Content-Type': 'application/x-www-form-urlencoded',
+		'Authorization': 'Basic ' + encodeClientCredentials(client.client_id, client.client_secret)
+	};
+
+	var tokRes = request('POST', authServer.tokenEndpoint, {
+		body: form_data,
+		headers: headers
+	});
+
+	var body = JSON.parse(tokRes.getBody());
+
+	access_token = body.access_token;
+
+	res.render("index", { access_token: body.access_token });
 });
 
 app.get('/fetch_resource', function(req, res) {
@@ -64,7 +104,23 @@ app.get('/fetch_resource', function(req, res) {
 	/*
 	 * Use the access token to call the resource server
 	 */
-	
+
+	if (!access_token) {
+		res.redirect("/authorize");
+		return;
+	}
+
+	var headers = {'Authorization': 'Bearer ' + access_token};
+	var resource = request('POST', protectedResource,{headers: headers});
+
+	if (resource.statusCode >= 200 && resource.statusCode < 300) {
+		var body = JSON.parse(resource.getBody());
+		res.render('data', {resource: body});
+		return;
+	} else {
+		res.render('error', {error: 'Server returned response code: ' + resource.statusCode});
+		return;
+	}
 });
 
 var buildUrl = function(base, options, hash) {
@@ -79,7 +135,7 @@ var buildUrl = function(base, options, hash) {
 	if (hash) {
 		newUrl.hash = hash;
 	}
-	
+
 	return url.format(newUrl);
 };
 
@@ -94,4 +150,4 @@ var server = app.listen(9000, 'localhost', function () {
   var port = server.address().port;
   console.log('OAuth Client is listening at http://%s:%s', host, port);
 });
- 
+
