@@ -43,6 +43,7 @@ var getAccessToken = function(req, res, next) {
 	    } else {
 	      console.log('No matching token was found.');
 	    };
+
 	    req.access_token = token;
 	    next();
 	    return;
@@ -61,8 +62,9 @@ var requireAccessToken = function(req, res, next) {
 app.options('/resource', cors());
 
 app.post("/resource", cors(), getAccessToken, function(req, res){
+	var currentDate = Date.now();
 
-	if (req.access_token) {
+	if (req.access_token && currentDate <= req.access_token.expires_in) {
 		res.json(resource);
 	} else {
 		res.status(401).end();
