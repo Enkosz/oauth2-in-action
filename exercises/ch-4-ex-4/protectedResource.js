@@ -4,6 +4,7 @@ var cons = require('consolidate');
 var nosql = require('nosql').load('database.nosql');
 var __ = require('underscore');
 var cors = require('cors');
+const { has } = require("underscore");
 
 var app = express();
 
@@ -74,11 +75,38 @@ app.get('/favorites', getAccessToken, requireAccessToken, function(req, res) {
 	/*
 	 * Get different user information based on the information of who approved the token
 	 */
-	
-	var unknown = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
-	res.json(unknown);
 
+	if (req.access_token.user === 'alice') {
+		var favorites = getScopeBasedResources(req.access_token, bobFavorites);
+
+		res.json({user: 'Alice', favorites})
+	} else if (req.access_token.user === 'bob') {
+		var favorites = getScopeBasedResources(req.access_token, aliceFavorites);
+
+		res.json({user: 'Bob', favorites})
+	} else {
+		var unknown = {user: 'Unknown', favorites: {movies: [], foods: [], music: []}};
+		res.json(unknown);
+	}
 });
+
+var hasScope = function(access_token, scope) {
+	return __.contains(access_token.scope, scope);
+}
+
+var getScopeBasedResources = function(access_token, favorites) {
+	if (!hasScope(access_token, 'movies')) {
+		delete favorites.movies
+	}
+	if (!hasScope(access_token, 'foods')) {
+		delete favorites.foods
+	}
+	if (!hasScope(access_token, 'music')) {
+		delete favorites.music
+	}
+
+	return favorites;
+}
 
 var server = app.listen(9002, 'localhost', function () {
   var host = server.address().address;
