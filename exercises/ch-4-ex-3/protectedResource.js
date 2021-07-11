@@ -58,9 +58,20 @@ var requireAccessToken = function(req, res, next) {
 };
 
 app.get('/produce', getAccessToken, requireAccessToken, function(req, res) {
-	var produce = {fruit: ['apple', 'banana', 'kiwi'], 
-		veggies: ['lettuce', 'onion', 'potato'], 
-		meats: ['bacon', 'steak', 'chicken breast']};	
+	var produce = {
+		fruit: [], 
+		veggies: [], 
+		meats: []
+	};
+
+	if (hasScope(req, 'fruit'))
+		produce.fruit = ['apple', 'banana', 'kiwi'];
+	if (hasScope(req, 'veggies'))
+		produce.veggies = ['lettuce', 'onion', 'potato'];
+	if (hasScope(req, 'meats'))
+		produce.meats = ['bacon', 'steak', 'chicken breast'];
+	if (hasScope(req, 'lowcarb'))
+		produce.lowcarb = ['salmon', 'broccoli', 'tomato'];
 
 	/*
 	 * Add different kinds of produce based on the incoming token's scope
@@ -68,6 +79,10 @@ app.get('/produce', getAccessToken, requireAccessToken, function(req, res) {
 
 	res.json(produce);
 });
+
+var hasScope = function(req, scope) {
+	return __.contains(req.access_token.scope, scope);
+}
 
 var server = app.listen(9002, 'localhost', function () {
   var host = server.address().address;
